@@ -1,0 +1,115 @@
+@import '@fontsource/cormorant-garamond/400.css';
+@import '@fontsource/cormorant-garamond/500.css';
+@import '@fontsource/cormorant-garamond/400-italic.css';
+@import '@fontsource-variable/manrope';
+@import 'tailwindcss';
+
+@theme {
+  --font-display: 'Cormorant Garamond', 'Times New Roman', serif;
+  --font-sans: 'Manrope Variable', 'Segoe UI', system-ui, sans-serif;
+  --color-ink: #04060c;
+  --color-night: #0a1120;
+  --color-mist: #c9d3e3;
+  --color-silver: #e7ecf4;
+  --color-azure: #7fb0ff;
+  --color-azure-deep: #3d6fe0;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  background: #04060c;
+  color: var(--color-silver);
+  font-family: var(--font-sans);
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+canvas {
+  display: block;
+  touch-action: none;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
+}
+
+.tracking-luxe {
+  letter-spacing: 0.32em;
+}
+
+.glass-panel {
+  background: linear-gradient(160deg, rgba(20, 30, 52, 0.55), rgba(6, 9, 18, 0.7));
+  border: 1px solid rgba(201, 211, 227, 0.14);
+  box-shadow:
+    0 30px 80px -20px rgba(0, 0, 0, 0.7),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+}
+
+.hairline {
+  background: linear-gradient(90deg, transparent, rgba(201, 211, 227, 0.45), transparent);
+  height: 1px;
+}
+
+.text-glow {
+  text-shadow:
+    0 0 30px rgba(127, 176, 255, 0.35),
+    0 0 2px rgba(255, 255, 255, 0.4);
+}
+
+.shimmer {
+  background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, 0.35) 50%, transparent 70%);
+  background-size: 250% 100%;
+  animation: shimmer 3.2s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 130% 0;
+  }
+  60%,
+  100% {
+    background-position: -130% 0;
+  }
+}
+
+.kbd {
+  display: inline-flex;
+  min-width: 1.9rem;
+  height: 1.9rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.45rem;
+  border-radius: 0.45rem;
+  border: 1px solid rgba(201, 211, 227, 0.22);
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--color-mist);
+}
+
+@keyframes pop {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.18);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.pop {
+  animation: pop 0.28s ease-out;
+}
