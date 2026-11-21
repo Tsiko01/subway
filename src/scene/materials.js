@@ -1,60 +1,30 @@
 import * as THREE from 'three'
-import { glowTexture, poolTexture } from '../game/textures'
 
-// Shared materials are created once and reused across every pooled object.
-let shared = null
-
-export function getMaterials() {
-  if (shared) return shared
-  const glow = glowTexture()
-  shared = {
-    darkMetal: new THREE.MeshStandardMaterial({ color: '#1a2130', metalness: 0.85, roughness: 0.32 }),
-    graphite: new THREE.MeshStandardMaterial({ color: '#0e121b', metalness: 0.6, roughness: 0.45 }),
-    silver: new THREE.MeshStandardMaterial({ color: '#c9d2df', metalness: 1, roughness: 0.22 }),
-    chrome: new THREE.MeshStandardMaterial({ color: '#e8eef8', metalness: 1, roughness: 0.06 }),
-    concrete: new THREE.MeshStandardMaterial({ color: '#8d95a3', metalness: 0.05, roughness: 0.85 }),
-    glass: new THREE.MeshStandardMaterial({
-      color: '#0d1a33',
-      metalness: 0.9,
-      roughness: 0.08,
-      transparent: true,
-      opacity: 0.85,
-    }),
-    // emissive "light" materials — values above 1 drive the bloom pass
-    glowBlue: new THREE.MeshBasicMaterial({ color: new THREE.Color('#5d9bff').multiplyScalar(3.2), toneMapped: false }),
-    glowIce: new THREE.MeshBasicMaterial({ color: new THREE.Color('#bcd6ff').multiplyScalar(2.6), toneMapped: false }),
-    glowWhite: new THREE.MeshBasicMaterial({ color: new THREE.Color('#ffffff').multiplyScalar(4), toneMapped: false }),
-    glowAmber: new THREE.MeshBasicMaterial({ color: new THREE.Color('#ffae42').multiplyScalar(3), toneMapped: false }),
-    glowRed: new THREE.MeshBasicMaterial({ color: new THREE.Color('#ff3b4e').multiplyScalar(3), toneMapped: false }),
-    halo: new THREE.MeshBasicMaterial({
-      map: glow,
-      color: '#6aa6ff',
-      transparent: true,
-      opacity: 0.9,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      toneMapped: false,
-    }),
-    haloWarm: new THREE.MeshBasicMaterial({
-      map: glow,
-      color: '#ffcf8a',
-      transparent: true,
-      opacity: 0.8,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      toneMapped: false,
-    }),
-    pool: new THREE.MeshBasicMaterial({
-      map: poolTexture(),
-      color: '#ffd29a',
-      transparent: true,
-      opacity: 0.5,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      toneMapped: false,
-    }),
+/**
+ * Material that shows one tile of a 2×2 texture atlas per instance (graffiti walls, billboards,
+ * neon signs, station signs). The tile index comes from an `aTile` instanced attribute.
+ */
+export function makeAtlasMaterial({ map, basic = false, emissive = 0, color = '#ffffff', roughness = 0.8, side = THREE.FrontSide }) {
+  const mat = basic
+    ? new THREE.MeshBasicMaterial({ map, color, side, toneMapped: emissive === 0 })
+    : new THREE.MeshStandardMaterial({ map, color, roughness, metalness: 0.05, side, emissiveMap: emissive ? map : null, emissive: emissive ? '#ffffff' : '#000000', emissiveIntensity: emissive })
+  mat.customProgramCacheKey = () => `atlas-${basic}`
+  mat.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute float aTile;')
+      .replace(
+        '#include <uv_vertex>',
+        `#include <uv_vertex>
+        vec2 tileOffset = vec2(mod(aTile, 2.0), floor(aTile / 2.0)) * 0.5;
+        #ifdef USE_MAP
+          vMapUv = vMapUv * 0.5 + tileOffset;
+        #endif
+        #ifdef USE_EMISSIVEMAP
+          vEmissiveMapUv = vEmissiveMapUv * 0.5 + tileOffset;
+        #endif`,
+      )
   }
-  return shared
+  return mat
 }
 
 /**

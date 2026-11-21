@@ -4,16 +4,19 @@ import { Bloom, ChromaticAberration, EffectComposer, Noise, ToneMapping, Vignett
 import { BlendFunction, ToneMappingMode } from 'postprocessing'
 import * as THREE from 'three'
 import { runtime } from '../game/runtime'
+import { getMap } from '../game/maps'
+import { displayMapId, useGame } from '../game/store'
 
 /** HDR post stack (Cinematic / Balanced tiers): bloom → ACES → chromatic speed fringe → vignette → grain. */
 export default function PostFX({ quality }) {
   const ca = useRef()
   const high = quality === 'high'
+  const bloom = getMap(useGame(displayMapId)).bloom
 
   useFrame(() => {
     if (!ca.current) return
     const speedK = THREE.MathUtils.smoothstep(runtime.speed, 24, 40) * (runtime.mode === 'playing' ? 1 : 0)
-    const amount = 0.0004 + speedK * 0.0011 + runtime.trauma * 0.006 + (runtime.boostTime > 0 ? 0.0006 : 0)
+    const amount = 0.0004 + speedK * 0.0011 + runtime.trauma * 0.006 + (runtime.power.double > 0 || runtime.power.jetpack > 0 ? 0.0006 : 0)
     ca.current.offset.set(amount, amount * 0.6)
   })
 
@@ -22,8 +25,8 @@ export default function PostFX({ quality }) {
       <Bloom
         mipmapBlur
         levels={high ? 8 : 5}
-        intensity={high ? 1.05 : 0.9}
-        luminanceThreshold={0.75}
+        intensity={bloom.intensity * (high ? 1.05 : 0.9)}
+        luminanceThreshold={bloom.threshold}
         luminanceSmoothing={0.25}
         radius={0.72}
       />

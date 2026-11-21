@@ -1,23 +1,30 @@
 import * as THREE from 'three'
-import { ZONES, ZONE_LENGTH } from './constants'
+import { MAPS, getMap } from './maps'
 
-const KEYS = ['fog', 'skyTop', 'skyHorizon', 'hemiSky', 'hemiGround', 'lamp', 'accent']
-const palettes = ZONES.map((z) => Object.fromEntries(KEYS.map((k) => [k, new THREE.Color(z[k])])))
+const KEYS = ['fog', 'skyTop', 'skyHorizon', 'hemiSky', 'hemiGround', 'sun', 'lamp', 'accent', 'water', 'ridge']
+const palettes = Object.fromEntries(MAPS.map((m) => [m.id, Object.fromEntries(KEYS.map((k) => [k, new THREE.Color(m.palette[k])]))]))
+const NUMS = ['fogDensity', 'sunIntensity', 'hemiIntensity', 'clouds', 'stars', 'exposure']
 
-/** Current blended environment colors — read by every visual system each frame. */
-export const atmo = Object.fromEntries(KEYS.map((k) => [k, palettes[0][k].clone()]))
+/** Current blended environment — read by every visual system each frame. */
+export const atmo = {
+  ...Object.fromEntries(KEYS.map((k) => [k, palettes.subway[k].clone()])),
+  ...Object.fromEntries(NUMS.map((k) => [k, MAPS[0][k]])),
+  sunDir: new THREE.Vector3(...MAPS[0].sunDir).normalize(),
+  night: 0,
+  mapId: 'subway',
+}
 
-const TRANSITION = 160 // meters of color cross-fade after entering a zone
-const smooth = (t) => t * t * (3 - 2 * t)
+const target = new THREE.Vector3()
 
-export function updateAtmosphere(distance) {
-  const zi = Math.floor(Math.max(0, distance) / ZONE_LENGTH)
-  const cur = palettes[zi % ZONES.length]
-  if (zi === 0) {
-    for (const k of KEYS) atmo[k].copy(cur[k])
-    return
-  }
-  const prev = palettes[(zi - 1) % ZONES.length]
-  const t = smooth(Math.min(1, (distance - zi * ZONE_LENGTH) / TRANSITION))
-  for (const k of KEYS) atmo[k].copy(prev[k]).lerp(cur[k], t)
+/** Ease the atmosphere toward the given map (instant when `snap`). */
+export function updateAtmosphere(mapId, dt, snap = false) {
+  const map = getMap(mapId)
+  const pal = palettes[map.id]
+  const k = snap ? 1 : 1 - Math.exp(-2.4 * dt)
+  for (const key of KEYS) atmo[key].lerp(pal[key], k)
+  for (const key of NUMS) atmo[key] += (map[key] - atmo[key]) * k
+  target.set(...map.sunDir).normalize()
+  atmo.sunDir.lerp(target, k).normalize()
+  atmo.night += ((map.night ? 1 : 0) - atmo.night) * k
+  atmo.mapId = map.id
 }

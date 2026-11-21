@@ -5,9 +5,10 @@ import App from './App'
 import { runtime } from './game/runtime'
 import { useGame } from './game/store'
 import { audio } from './game/audio'
+import * as rules from './game/rules'
 
 // Dev-only handle for automated testing; stripped from production builds.
-if (import.meta.env.DEV) window.__nocturne = { runtime, useGame, audio }
+if (import.meta.env.DEV) window.__nocturne = { runtime, useGame, audio, rules }
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

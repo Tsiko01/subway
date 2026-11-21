@@ -229,7 +229,7 @@ export function SpeedLines({ count = 70 }) {
   const m = useMemo(() => new THREE.Matrix4(), [])
   useFrame(() => {
     const speedK = THREE.MathUtils.smoothstep(runtime.speed, 22, 38)
-    const boost = runtime.boostTime > 0 ? 0.35 : 0
+    const boost = runtime.power.double > 0 || runtime.power.jetpack > 0 ? 0.3 : 0
     const target = runtime.mode === 'playing' && !runtime.crashed ? Math.min(0.55, speedK * 0.38 + boost) : 0
     mat.opacity += (target - mat.opacity) * 0.08
     mat.color.copy(atmo.accent).lerp(WHITE, 0.5)
@@ -247,4 +247,91 @@ export function SpeedLines({ count = 70 }) {
     mesh.current.instanceMatrix.needsUpdate = true
   }, -6)
   return <instancedMesh ref={mesh} args={[geo, mat, count]} frustumCulled={false} />
+}
+
+const smokeVertex = /* glsl */ `
+  attribute float aSize;
+  attribute float aAlpha;
+  uniform float uScale;
+  varying float vAlpha;
+  void main() {
+    vAlpha = aAlpha;
+    vec4 mv = modelViewMatrix * vec4(position, 1.0);
+    gl_PointSize = aAlpha > 0.001 ? aSize * uScale / max(0.1, -mv.z) : 0.0;
+    gl_Position = projectionMatrix * mv;
+  }
+`
+const smokeFragment = /* glsl */ `
+  uniform vec3 uColor;
+  varying float vAlpha;
+  void main() {
+    vec2 c = gl_PointCoord - 0.5;
+    float d = length(c);
+    float a = smoothstep(0.5, 0.05, d) * vAlpha;
+    gl_FragColor = vec4(uColor, a * 0.55);
+  }
+`
+
+/** Soft, slowly rising smoke puffs (industrial chimneys). */
+export function Smoke({ max = 260 }) {
+  const sys = useMemo(() => {
+    const geo = new THREE.BufferGeometry()
+    const pos = new Float32Array(max * 3)
+    const size = new Float32Array(max)
+    const alpha = new Float32Array(max)
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3).setUsage(THREE.DynamicDrawUsage))
+    geo.setAttribute('aSize', new THREE.BufferAttribute(size, 1).setUsage(THREE.DynamicDrawUsage))
+    geo.setAttribute('aAlpha', new THREE.BufferAttribute(alpha, 1).setUsage(THREE.DynamicDrawUsage))
+    geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e5)
+    const mat = new THREE.ShaderMaterial({
+      uniforms: { uScale: { value: 500 }, uColor: { value: new THREE.Color('#9b928a') } },
+      vertexShader: smokeVertex,
+      fragmentShader: smokeFragment,
+      transparent: true,
+      depthWrite: false,
+    })
+    return { geo, pos, size, alpha, mat, life: new Float32Array(max), cursor: 0 }
+  }, [max])
+  usePointScale(sys.mat)
+
+  useEffect(() => {
+    fx.smoke = ({ x, y, z }) => {
+      const i = sys.cursor
+      sys.cursor = (sys.cursor + 1) % max
+      sys.pos[i * 3] = x
+      sys.pos[i * 3 + 1] = y
+      sys.pos[i * 3 + 2] = z
+      sys.life[i] = 1
+      sys.size[i] = 3 + Math.random() * 2
+    }
+    return () => {
+      fx.smoke = () => {}
+      sys.geo.dispose()
+      sys.mat.dispose()
+    }
+  }, [sys, max])
+
+  useFrame((_, delta) => {
+    const dt = Math.min(delta, 0.05)
+    const dz = runtime.dz
+    for (let i = 0; i < max; i++) {
+      if (sys.life[i] <= 0) {
+        sys.alpha[i] = 0
+        continue
+      }
+      sys.life[i] -= dt * (atmo.mapId === 'industrial' ? 0.18 : 3)
+      sys.pos[i * 3] += dt * 1.2
+      sys.pos[i * 3 + 1] += dt * 2.6
+      sys.pos[i * 3 + 2] += dz
+      sys.size[i] += dt * 4
+      const l = Math.max(0, sys.life[i])
+      sys.alpha[i] = Math.min(1, (1 - l) * 6) * l
+    }
+    const a = sys.geo.attributes
+    a.position.needsUpdate = true
+    a.aSize.needsUpdate = true
+    a.aAlpha.needsUpdate = true
+  }, -6)
+
+  return <points geometry={sys.geo} material={sys.mat} frustumCulled={false} />
 }

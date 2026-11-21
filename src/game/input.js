@@ -11,9 +11,12 @@ const KEYMAP = {
   Space: 'up',
   ArrowDown: 'down',
   KeyS: 'down',
+  KeyE: 'board',
+  KeyB: 'board',
+  KeyQ: 'jet',
 }
 
-const pushAction = (a) => {
+export const pushAction = (a) => {
   if (runtime.mode !== 'playing' || runtime.crashed) return
   // keep the queue short so mashing never builds a backlog
   if (runtime.actions.length < 3) runtime.actions.push(a)
@@ -30,11 +33,12 @@ export function installInput(target = window) {
     if (e.code === 'Escape' || e.code === 'KeyP') {
       if (state.phase === 'playing') state.pause()
       else if (state.phase === 'paused') state.resume()
+      else if (state.phase === 'menu' && state.screen !== 'home' && e.code === 'Escape') state.openScreen('home')
       return
     }
     if (e.code === 'Enter') {
       if (onButton && state.phase !== 'playing') return // the focused button handles it
-      if (state.phase === 'menu' || state.phase === 'gameover') state.startGame()
+      if ((state.phase === 'menu' && state.screen === 'home') || state.phase === 'gameover') state.startGame()
       else if (state.phase === 'intro') state.finishIntro()
       return
     }
@@ -51,11 +55,14 @@ export function installInput(target = window) {
   let tracking = false
   const THRESHOLD = 28
 
+  let lastTap = 0
+  let moved = false
   const onTouchStart = (e) => {
     if (e.touches.length !== 1) return
     sx = e.touches[0].clientX
     sy = e.touches[0].clientY
     tracking = true
+    moved = false
   }
   const onTouchMove = (e) => {
     if (!tracking) return
@@ -63,11 +70,20 @@ export function installInput(target = window) {
     const dy = e.touches[0].clientY - sy
     if (Math.abs(dx) < THRESHOLD && Math.abs(dy) < THRESHOLD) return
     tracking = false // fire once per gesture, as early as possible
+    moved = true
     if (Math.abs(dx) > Math.abs(dy)) pushAction(dx > 0 ? 'right' : 'left')
     else pushAction(dy > 0 ? 'down' : 'up')
   }
-  const onTouchEnd = () => {
+  const onTouchEnd = (e) => {
     tracking = false
+    // double-tap anywhere on the play field rides a skateboard
+    if (!moved && e.target?.tagName !== 'BUTTON' && !e.target?.closest?.('button')) {
+      const now = performance.now()
+      if (now - lastTap < 300) {
+        pushAction('board')
+        lastTap = 0
+      } else lastTap = now
+    }
   }
 
   window.addEventListener('keydown', onKeyDown)

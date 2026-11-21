@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { useGame } from '../game/store'
 
@@ -7,11 +7,17 @@ const TITLE = 'NOCTURNE'
 /** Cinematic opening: letterbox bars, a fade from black and a staggered title reveal. */
 export default function Intro() {
   const finishIntro = useGame((s) => s.finishIntro)
+  const ready = useGame((s) => s.worldReady)
+  const [timeUp, setTimeUp] = useState(false)
 
+  // the title plays for at least 4.6 s, and until the world has finished warming up
   useEffect(() => {
-    const id = setTimeout(finishIntro, 4600)
+    const id = setTimeout(() => setTimeUp(true), 4600)
     return () => clearTimeout(id)
-  }, [finishIntro])
+  }, [])
+  useEffect(() => {
+    if (timeUp && ready) finishIntro()
+  }, [timeUp, ready, finishIntro])
 
   return (
     <motion.div
@@ -48,7 +54,7 @@ export default function Intro() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.8, duration: 1.2 }}
         >
-          A night run experience
+          An endless rail runner
         </motion.div>
         <h1 className="font-display text-glow flex text-[clamp(3.2rem,13vw,9.5rem)] leading-none font-normal tracking-[0.12em] text-silver">
           {TITLE.split('').map((ch, i) => (
@@ -74,7 +80,7 @@ export default function Intro() {
           animate={{ opacity: 1 }}
           transition={{ delay: 2.6, duration: 1.4 }}
         >
-          Run into the blue hour
+          Run the rails. Outrun the officer.
         </motion.p>
       </div>
       <motion.div

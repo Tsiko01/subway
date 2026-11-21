@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
+import { Footprints, Info, ListChecks, Magnet, Rocket, Siren, Zap } from 'lucide-react'
 import { events } from '../game/runtime'
+import { POWER_COLORS } from '../scene/prefabs'
+import { BoardIcon, CoinIcon } from './Buttons'
 
 let nextId = 1
+const POWER_ICON = { magnet: Magnet, sneakers: Footprints, jetpack: Rocket, double: Zap, board: BoardIcon }
 
-/** Cinematic center-screen callouts: zone titles, milestones, multipliers, power-ups. */
+/** Center-screen callouts: power-ups, missions, the officer, milestones. */
 export default function Toasts() {
   const [items, setItems] = useState([])
 
@@ -12,11 +16,14 @@ export default function Toasts() {
     const timers = new Set()
     const off = events.on('toast', (t) => {
       const id = nextId++
-      setItems((list) => [...list.filter((x) => x.kind !== t.kind), { ...t, id }].slice(-2))
-      const timer = setTimeout(() => {
-        setItems((list) => list.filter((x) => x.id !== id))
-        timers.delete(timer)
-      }, t.kind === 'zone' ? 3200 : 2000)
+      setItems((list) => [...list.filter((x) => x.kind !== t.kind), { ...t, id }].slice(-3))
+      const timer = setTimeout(
+        () => {
+          setItems((list) => list.filter((x) => x.id !== id))
+          timers.delete(timer)
+        },
+        t.kind === 'mission' ? 2600 : 1900,
+      )
       timers.add(timer)
     })
     const offCrash = events.on('crash', () => setItems([]))
@@ -28,35 +35,33 @@ export default function Toasts() {
   }, [])
 
   return (
-    <div className="pointer-events-none absolute inset-x-0 top-[22vh] flex flex-col items-center gap-3 px-4 text-center">
+    <div className="pointer-events-none absolute inset-x-0 top-[21vh] flex flex-col items-center gap-2 px-4 text-center">
       <AnimatePresence>
-        {items.map((t) =>
-          t.kind === 'zone' ? (
-            <motion.div
-              key={t.id}
-              layout
-              initial={{ opacity: 0, y: 14, filter: 'blur(10px)' }}
-              animate={{ opacity: 1, y: 0, filter: 'blur(0px)', transition: { duration: 0.9 } }}
-              exit={{ opacity: 0, y: -10, filter: 'blur(8px)', transition: { duration: 0.7 } }}
-            >
-              <div className="text-[0.58rem] uppercase tracking-[0.6em] text-azure">Now entering</div>
-              <div className="font-display text-glow mt-2 text-[clamp(2.2rem,6vw,3.8rem)] leading-none text-silver">{t.title}</div>
-              <div className="font-display mt-2 text-lg italic text-mist/75">{t.sub}</div>
-            </motion.div>
-          ) : (
+        {items.map((t) => {
+          const Icon = t.kind === 'power' ? POWER_ICON[t.power] : t.kind === 'mission' ? ListChecks : t.kind === 'officer' ? Siren : t.kind === 'info' ? Info : null
+          const color = t.kind === 'power' ? POWER_COLORS[t.power] : t.kind === 'officer' ? '#ff8fa3' : t.kind === 'mission' ? '#ffe08a' : '#c9d3e3'
+          return (
             <motion.div
               key={t.id}
               layout
               initial={{ opacity: 0, scale: 0.85, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0, transition: { type: 'spring', stiffness: 320, damping: 22 } }}
-              exit={{ opacity: 0, y: -12, transition: { duration: 0.4 } }}
-              className="glass-panel rounded-full px-6 py-2.5"
+              exit={{ opacity: 0, y: -12, transition: { duration: 0.35 } }}
+              className="glass-panel flex max-w-[92vw] items-center gap-3 rounded-full px-5 py-2.5"
+              style={{ borderColor: `${color}55` }}
             >
-              <span className="font-display text-2xl text-silver">{t.title}</span>
-              {t.sub && <span className="ml-3 text-[0.6rem] uppercase tracking-[0.3em] text-mist/60">{t.sub}</span>}
+              {Icon && <Icon className="h-5 w-5 shrink-0" style={{ color }} />}
+              <span className="font-display text-xl text-silver sm:text-2xl">{t.title}</span>
+              {t.sub && <span className="hidden text-[0.6rem] uppercase tracking-[0.25em] text-mist/65 sm:inline">{t.sub}</span>}
+              {t.reward && (
+                <span className="flex items-center gap-1 text-[0.8rem] font-bold text-[#ffe08a]">
+                  +<CoinIcon className="h-4 w-4" />
+                  {t.reward}
+                </span>
+              )}
             </motion.div>
-          ),
-        )}
+          )
+        })}
       </AnimatePresence>
     </div>
   )

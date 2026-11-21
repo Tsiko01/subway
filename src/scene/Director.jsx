@@ -1,27 +1,25 @@
 import { useFrame } from '@react-three/fiber'
-import {
-  GEMS_PER_MULTIPLIER,
-  MAX_BASE_MULTIPLIER,
-  MAX_SPEED,
-  MENU_SPEED,
-  SPEED_RAMP_DISTANCE,
-  START_SPEED,
-  ZONES,
-  zoneIndexAt,
-} from '../game/constants'
-import { events, runtime } from '../game/runtime'
+import { MAX_SPEED, MENU_SPEED, SPEED_RAMP_DISTANCE, START_SPEED } from '../game/constants'
+import { POWER_KEYS, events, runtime } from '../game/runtime'
 import { updateAtmosphere } from '../game/atmosphere'
-import { useGame } from '../game/store'
+import { displayMapId, useGame } from '../game/store'
 import { audio } from '../game/audio'
 
+let missionClock = 0
+let first = true
+
 /**
- * Runs first every frame: advances the simulation clock, world speed, score,
- * difficulty, milestones and the crash → game-over sequence.
+ * Runs first every frame: advances the simulation clock, world speed, power-up timers,
+ * score, the chase, milestones, mission checks and the crash → game-over sequence.
  */
 export default function Director() {
   useFrame((_, delta) => {
     const r = runtime
     const realDt = Math.min(delta, 1 / 20)
+    const state = useGame.getState()
+
+    updateAtmosphere(displayMapId(state), realDt, first)
+    first = false
 
     if (r.mode === 'paused') {
       r.dt = 0
@@ -32,17 +30,20 @@ export default function Director() {
     let ts = 1
     if (r.crashed) {
       r.crashTime += realDt
-      // dramatic slow motion that eases back to real time
       ts = r.crashTime < 1.0 ? 0.3 + r.crashTime * 0.5 : 1
-      r.speed *= Math.exp(-22 * realDt)
-      if (r.crashTime > 1.45 && r.mode === 'playing') {
+      r.speed *= Math.exp(-(r.crashKind === 'caught' ? 6 : 22) * realDt)
+      const wait = r.crashKind === 'caught' ? 1.9 : 1.45
+      if (r.crashTime > wait && r.mode === 'playing') {
         audio.play('gameover')
-        useGame.getState().endGame()
+        state.endGame()
       }
     } else if (r.mode === 'playing') {
-      r.speed = START_SPEED + (MAX_SPEED - START_SPEED) * (1 - Math.exp(-r.distance / SPEED_RAMP_DISTANCE))
+      r.speedMul += (1 - r.speedMul) * (1 - Math.exp(-0.9 * realDt))
+      r.speed = (START_SPEED + (MAX_SPEED - START_SPEED) * (1 - Math.exp(-r.distance / SPEED_RAMP_DISTANCE))) * r.speedMul
     } else if (r.mode === 'menu') {
-      r.speed += (MENU_SPEED - r.speed) * (1 - Math.exp(-2 * realDt))
+      // the world pauses while browsing the shop/maps so the runner can idle and show off
+      const target = state.screen === 'home' ? MENU_SPEED : 0
+      r.speed += (target - r.speed) * (1 - Math.exp(-2.5 * realDt))
     } else {
       r.speed *= Math.exp(-3 * realDt)
     }
@@ -55,19 +56,25 @@ export default function Director() {
 
     if (r.mode === 'playing' && !r.crashed) {
       r.distance += r.dz
-      r.boostTime = Math.max(0, r.boostTime - dt)
-      r.magnetTime = Math.max(0, r.magnetTime - dt)
+      r.stats.distance = Math.floor(r.distance)
+      r.stats.cleanDistance = Math.max(r.stats.cleanDistance, Math.floor(r.distance - r.cleanStart))
 
-      const base = Math.min(MAX_BASE_MULTIPLIER, 1 + Math.floor(r.gems / GEMS_PER_MULTIPLIER))
-      if (base > r.baseMultiplier) {
-        r.baseMultiplier = base
-        events.emit('toast', { kind: 'mult', title: `×${base} Multiplier`, sub: `${r.gems} azure drops collected` })
-        audio.play('milestone')
+      for (const k of POWER_KEYS) {
+        if (r.power[k] <= 0) continue
+        r.power[k] = Math.max(0, r.power[k] - dt)
+        if (r.power[k] === 0 && k === 'board') {
+          audio.play('swoosh')
+          events.emit('toast', { kind: 'info', title: 'Board ride over', sub: 'Press E for another' })
+        }
       }
-      const mult = base * (r.boostTime > 0 ? 2 : 1)
+      r.invuln = Math.max(0, r.invuln - dt)
+      r.chase.heat = Math.max(0, r.chase.heat - dt)
+
+      const mult = r.levelMultiplier * (r.power.double > 0 ? 2 : 1)
       r.multiplier = mult
       r.maxMultiplier = Math.max(r.maxMultiplier, mult)
       r.score += r.dz * mult
+      r.stats.score = Math.floor(r.score)
 
       if (r.distance >= r.nextMilestone) {
         events.emit('toast', { kind: 'milestone', title: `${r.nextMilestone.toLocaleString('en-US')} m`, sub: 'Keep running' })
@@ -75,16 +82,14 @@ export default function Director() {
         r.nextMilestone += 500
       }
 
-      const zi = zoneIndexAt(r.distance)
-      if (zi !== r.zone) {
-        r.zone = zi
-        const z = ZONES[zi]
-        events.emit('toast', { kind: 'zone', title: z.name, sub: z.sub })
+      missionClock += realDt
+      if (missionClock > 0.4) {
+        missionClock = 0
+        state.checkMissions()
       }
     }
 
     r.trauma = Math.max(0, r.trauma - realDt * 1.3)
-    updateAtmosphere(r.mode === 'menu' ? 0 : r.distance)
   }, -10)
 
   return null
